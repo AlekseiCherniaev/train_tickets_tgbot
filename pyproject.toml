@@ -4,11 +4,14 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.12"
 dependencies = [
+    "aiohttp>=3.12.15",
+    "aioresponses>=0.7.8",
+    "bs4>=0.0.2",
     "dotenv>=0.9.9",
     "orjson>=3.11.1",
     "pre-commit>=4.2.0",
     "pytest-asyncio>=1.1.0",
-    "python-telegram-bot>=22.3",
+    "python-telegram-bot[test]>=22.3",
     "structlog>=25.4.0",
 ]
 
@@ -18,3 +21,6 @@ dev = [
     "pytest>=8.4.1",
     "ruff>=0.12.7",
 ]
+
+[tool.mypy]
+exclude = 'tests/'
