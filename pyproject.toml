@@ -10,6 +10,7 @@ dependencies = [
     "dotenv>=0.9.9",
     "orjson>=3.11.1",
     "pre-commit>=4.2.0",
+    "pydantic-settings>=2.10.1",
     "pytest-asyncio>=1.1.0",
     "python-telegram-bot[test]>=22.3",
     "structlog>=25.4.0",
