@@ -10,8 +10,8 @@ logger = structlog.get_logger("app")
 
 
 def main() -> None:
-    prepare_logger(os.getenv("LOG_LEVEL", "INFO"))
     load_dotenv()
+    prepare_logger(os.getenv("LOG_LEVEL", "INFO"))
     if os.getenv("BOT_TOKEN") is None:
         raise ValueError(
             "BOT_TOKEN is not set. Please set it in the .env file or as an environment variable"
