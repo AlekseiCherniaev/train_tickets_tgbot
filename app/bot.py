@@ -8,7 +8,7 @@ from telegram.ext import (
     Application,
 )
 
-from app.handlers import start, enter_ticket_data, cancel
+from app.handlers import start, enter_ticket_data, cancel, add_ticket
 
 logger = structlog.getLogger("ticket_bot")
 
@@ -28,11 +28,19 @@ class TicketBot:
         application.add_handler(CommandHandler("start", start))
         application.add_handler(
             MessageHandler(
-                filters.TEXT & ~filters.COMMAND & ~filters.Regex(r"^(Cancel|cancel)$"),
+                filters.TEXT
+                & ~filters.COMMAND
+                & ~filters.Regex(r"^(Отмена|отмена)$")
+                & ~filters.Regex(r"^(Ещё один билет|eщё один билет)$"),
                 enter_ticket_data,
             )
         )
         application.add_handler(
-            MessageHandler(filters.Regex(r"^(Cancel|cancel)$"), cancel)
+            MessageHandler(filters.Regex(r"^(Отмена|отмена)$"), cancel)
+        )
+        application.add_handler(
+            MessageHandler(
+                filters.Regex(r"^(Ещё один билет|eщё один билет)$"), add_ticket
+            )
         )
         logger.info("All handlers added")
