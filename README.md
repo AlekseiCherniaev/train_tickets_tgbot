@@ -47,3 +47,23 @@ A Telegram bot that helps you find available train tickets on the Belarusian Rai
 - Station names should match exactly with pass.rw.by
 - Maximum 3 concurrent searches per user
 - Bot automatically stops all searches when shut down
+
+### Screenshots:
+
+<img width="377" height="286" alt="image" src="https://github.com/user-attachments/assets/f7bcb17b-4f1d-44b1-bf84-6652bca1b140" />
+
+---
+
+<img width="437" height="341" alt="image" src="https://github.com/user-attachments/assets/55895803-bba5-4394-a445-e967e3d522a8" />
+
+---
+
+<img width="437" height="341" alt="image" src="https://github.com/user-attachments/assets/a82fe23c-48c2-447b-9bfe-4e208d4063f9" />
+
+---
+
+<img width="437" height="146" alt="image" src="https://github.com/user-attachments/assets/d72940c9-9800-42bb-90fd-b7d54b79e0da" />
+
+---
+
+<img width="437" height="254" alt="image" src="https://github.com/user-attachments/assets/e3652eb2-8161-4875-92e8-5f2d6e184c1b" />
