@@ -1,0 +1,3 @@
+TODO
+localization?
+favourite paths

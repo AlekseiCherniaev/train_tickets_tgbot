@@ -9,6 +9,7 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from app.settings import settings
+from app.task_manager import task_manager
 
 logger = structlog.getLogger(__name__)
 
@@ -67,6 +68,7 @@ async def enter_ticket_data(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     task = asyncio.create_task(
         start_ticket_checking(context.bot, params, update.message.chat_id)
     )
+    task_manager.add_task(chat_id=update.message.chat_id, task=task)
 
     if "search_task" not in context.user_data:
         context.user_data["search_task"] = task
