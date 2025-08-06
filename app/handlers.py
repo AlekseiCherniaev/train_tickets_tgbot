@@ -5,6 +5,7 @@ import aiohttp
 import structlog
 from bs4 import BeautifulSoup
 from telegram import Update, Bot, ReplyKeyboardRemove, ReplyKeyboardMarkup
+from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from app.settings import settings
@@ -25,6 +26,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "⏰ <b>Время:</b> ЧЧ:ММ (24-часовой формат)\n\n"
         "🔹 <b>Пример:</b>\n"
         f"<code>Толочин  Минск-Пассажирский  {datetime.date.today()} 07:44</code>\n\n"
+        f"Можно искать до 3 билетов одновременно\n"
     )
     await update.message.reply_html(message)
     logger.bind(user_id=user.id, username=user.username).info(
@@ -58,7 +60,31 @@ async def enter_ticket_data(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     task = asyncio.create_task(
         start_ticket_checking(context.bot, params, update.message.chat_id)
     )
-    context.user_data["search_task"] = task
+
+    if "search_task" not in context.user_data:
+        context.user_data["search_task"] = task
+    else:
+        for i in range(1, settings.max_concurrent_searches + 1):
+            task_key = f"search_task{i}"
+            if task_key not in context.user_data or context.user_data[task_key].done():
+                context.user_data[task_key] = task
+                return None
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        await update.message.reply_text(
+            "❌ <b>Достигнут лимит поисков</b>\n\n"
+            f"Можно запустить не более {settings.max_concurrent_searches} одновременных поисков.\n"
+            "Больше запустить не получится.\n\n",
+            parse_mode=ParseMode.HTML,
+            reply_markup=ReplyKeyboardMarkup(
+                [["Отмена"]],
+                resize_keyboard=True,
+                one_time_keyboard=True,
+            ),
+        )
     return None
 
 
@@ -84,10 +110,13 @@ async def start_ticket_checking(bot: Bot, params: list[str], chat_id: int) -> No
                     f"📅 <b>Дата:</b> {params[2]}\n"
                     f"⏰ <b>Время:</b> {params[3]}\n\n"
                     "Я сообщу вам сразу, как только билеты появятся в продаже.\n\n"
-                    "❌ Для отмены поиска нажмите <b>Cancel</b>",
-                    parse_mode="HTML",
+                    "❌ Для отмены поиска нажмите <b>Отмена</b>\n\n"
+                    "Либо введите еще один билет\n\n",
+                    parse_mode=ParseMode.HTML,
                     reply_markup=ReplyKeyboardMarkup(
-                        [["Cancel"]], resize_keyboard=True, one_time_keyboard=True
+                        [["Отмена", "Ещё один билет"]],
+                        resize_keyboard=True,
+                        one_time_keyboard=True,
                     ),
                 )
         except Exception as e:
@@ -154,7 +183,7 @@ async def validate_ticket_params(
             f"{error_message}\n\n"
             f"📝 <b>Попробуйте снова:</b>\n"
             f"<code>Толочин Минск-Пассажирский {datetime.date.today()} 07:44</code>",
-            parse_mode="HTML",
+            parse_mode=ParseMode.HTML,
         )
         logger.bind(params=params).debug(f"Found error in RZD request: {error_message}")
         return False
@@ -165,11 +194,12 @@ async def validate_ticket_params(
             text="🚫 <b>Поезд не найден</b>\n\n"
             f"Время <b>{params[3]}</b> не найдено для указанного маршрута.\n\n"
             "ℹ <b>Проверьте:</b>\n"
+            "• Неправильно указаны станции\n"
             "• Доступность рейсов на выбранное время\n"
             "• Формат времени (ЧЧ:ММ, 24-часовой)\n\n"
             f"🔹 <b>Пример запроса:</b>\n"
             f"<code>Толочин Минск-Пассажирский {datetime.date.today()} 07:44</code>",
-            parse_mode="HTML",
+            parse_mode=ParseMode.HTML,
         )
         logger.bind(params=params).debug(f"Found error in departure time: {params[3]}")
         return False
@@ -182,27 +212,58 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         not update
         or not update.message
         or not update.message.text
-        or update.message.text.strip().lower() != "cancel"
+        or update.message.text.strip().lower() != "отмена"
     ):
         return
     if not context.user_data:
         await update.message.reply_text("Нет активного поиска для отмены")
         return
-    task = context.user_data.get("search_task")
-    if task and not task.done():
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+
+    cancelled_count = 0
+    for i in range(settings.max_concurrent_searches + 1):
+        task_key = f"search_task{i}" if i > 0 else "search_task"
+        if task := context.user_data.get(task_key):
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                    cancelled_count += 1
+                except asyncio.CancelledError:
+                    cancelled_count += 1
+                except Exception as e:
+                    logger.error(f"Error cancelling task {task_key}: {e}")
+            context.user_data.pop(task_key, None)
+
     await update.message.reply_text(
-        "❌ <b>Поиск отменен</b>\n\n"
+        f"❌ <b>Отменено {cancelled_count} поисков</b>\n\n"
         "Чтобы начать новый поиск, введите:\n"
         "<code>Откуда Куда Дата Время</code>\n\n"
         "🔹 <b>Пример:</b>\n"
         f"<code>Толочин Минск-Пассажирский {datetime.date.today()} 07:44</code>\n\n"
         "Или нажмите /start для справки",
-        parse_mode="HTML",
+        parse_mode=ParseMode.HTML,
         reply_markup=ReplyKeyboardRemove(),
     )
-    context.user_data.pop("search_task", None)
+
+
+async def add_ticket(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if (
+        not update
+        or not update.effective_user
+        or not update.message
+        or not update.message.text
+        or update.message.text.strip().lower() != "ещё один билет"
+    ):
+        return
+    await update.message.reply_text(
+        f"📝 <b>Лимит одновременного поиска: {settings.max_concurrent_searches}</b>\n"
+        "📝 <b>Введите данные в формате:</b>\n"
+        "<code>Откуда  Куда  Дата  Время</code>\n\n"
+        "📅 <b>Дата:</b> ГГГГ-ММ-ДД\n"
+        "⏰ <b>Время:</b> ЧЧ:ММ (24-часовой формат)\n\n"
+        "🔹 <b>Пример:</b>\n"
+        f"<code>Толочин  Минск-Пассажирский  {datetime.date.today()} 07:44</code>\n\n",
+        parse_mode=ParseMode.HTML,
+        reply_markup=ReplyKeyboardRemove(),
+    )
+    logger.debug(f"User {update.effective_user.username} wants to add another ticket")
