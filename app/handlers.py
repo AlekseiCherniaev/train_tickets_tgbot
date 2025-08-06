@@ -26,7 +26,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "📅 <b>Дата:</b> ГГГГ-ММ-ДД\n"
         "⏰ <b>Время:</b> ЧЧ:ММ (24-часовой формат)\n\n"
         "🔹 <b>Пример:</b>\n"
-        f"<code>Толочин  Минск-Пассажирский  {datetime.date.today()} 07:44</code>\n\n"
+        f"<code>Толочин  Минск-Пассажирский {datetime.date.today()} 07:44</code>\n\n"
         f"Можно искать до 3 билетов одновременно\n"
     )
     await update.message.reply_html(message)
