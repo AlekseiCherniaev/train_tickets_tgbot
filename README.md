@@ -67,3 +67,7 @@ A Telegram bot that helps you find available train tickets on the Belarusian Rai
 ---
 
 <img width="437" height="254" alt="image" src="https://github.com/user-attachments/assets/e3652eb2-8161-4875-92e8-5f2d6e184c1b" />
+
+---
+
+<img width="437" height="119" alt="image" src="https://github.com/user-attachments/assets/fa14b3a0-4da5-4dcf-961d-cb29fb7ce426" />
