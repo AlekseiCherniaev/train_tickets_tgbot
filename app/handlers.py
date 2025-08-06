@@ -53,7 +53,14 @@ async def enter_ticket_data(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             "📅 Дата в формате: <b>ГГГГ-ММ-ДД</b>\n"
             "⏰ Время в формате: <b>ЧЧ:ММ</b>"
         )
-        await update.message.reply_text(error_message)
+        await update.message.reply_html(
+            error_message,
+            reply_markup=ReplyKeyboardMarkup(
+                [["Отмена"]],
+                resize_keyboard=True,
+                one_time_keyboard=True,
+            ),
+        )
         logger.bind(params=params).debug("Wrong ticket params")
         return None
 
@@ -148,6 +155,11 @@ async def start_ticket_checking(bot: Bot, params: list[str], chat_id: int) -> No
                         await bot.send_message(
                             chat_id=chat_id,
                             text=f"✅ Билет появился в продаже! {params[0]} → {params[1]} {params[2]} {params[3]}",
+                            reply_markup=ReplyKeyboardMarkup(
+                                [["Отмена"]],
+                                resize_keyboard=True,
+                                one_time_keyboard=True,
+                            ),
                         )
                         logger.debug(
                             f"Tickets found for {params}, chat_id: {chat_id}, trying again..."
@@ -184,6 +196,11 @@ async def validate_ticket_params(
             f"📝 <b>Попробуйте снова:</b>\n"
             f"<code>Толочин Минск-Пассажирский {datetime.date.today()} 07:44</code>",
             parse_mode=ParseMode.HTML,
+            reply_markup=ReplyKeyboardMarkup(
+                [["Отмена"]],
+                resize_keyboard=True,
+                one_time_keyboard=True,
+            ),
         )
         logger.bind(params=params).debug(f"Found error in RZD request: {error_message}")
         return False
@@ -200,6 +217,11 @@ async def validate_ticket_params(
             f"🔹 <b>Пример запроса:</b>\n"
             f"<code>Толочин Минск-Пассажирский {datetime.date.today()} 07:44</code>",
             parse_mode=ParseMode.HTML,
+            reply_markup=ReplyKeyboardMarkup(
+                [["Отмена"]],
+                resize_keyboard=True,
+                one_time_keyboard=True,
+            ),
         )
         logger.bind(params=params).debug(f"Found error in departure time: {params[3]}")
         return False
@@ -235,7 +257,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             context.user_data.pop(task_key, None)
 
     await update.message.reply_text(
-        f"❌ <b>Отменено {cancelled_count} поисков</b>\n\n"
+        f"❌ <b>Отменено {cancelled_count} поиск(а)</b>\n\n"
         "Чтобы начать новый поиск, введите:\n"
         "<code>Откуда Куда Дата Время</code>\n\n"
         "🔹 <b>Пример:</b>\n"
@@ -264,6 +286,5 @@ async def add_ticket(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         "🔹 <b>Пример:</b>\n"
         f"<code>Толочин  Минск-Пассажирский  {datetime.date.today()} 07:44</code>\n\n",
         parse_mode=ParseMode.HTML,
-        reply_markup=ReplyKeyboardRemove(),
     )
     logger.debug(f"User {update.effective_user.username} wants to add another ticket")
