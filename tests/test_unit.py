@@ -1,5 +1,5 @@
 from typing import Any
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 from bs4 import BeautifulSoup
@@ -8,8 +8,6 @@ from telegram.ext import ContextTypes
 
 from app.handlers import (
     start,
-    enter_ticket_data,
-    start_ticket_checking,
     validate_ticket_params,
 )
 
@@ -82,62 +80,6 @@ class TestHandlers:
     ) -> None:
         await start(mock_update, None)
         mock_message.reply_html.assert_awaited_once()
-        mock_user.mention_html.assert_called_once()
-
-    async def test_enter_ticket_data_none_user(self, mock_logger: Any) -> None:
-        mock_update = MagicMock()
-        mock_update.effective_user = None
-
-        with patch("app.handlers.logger", mock_logger):
-            await enter_ticket_data(mock_update, None)
-        mock_logger.bind.assert_called_once()
-        mock_logger.bind.return_value.error.assert_called_once_with(
-            "Update message or user is None"
-        )
-
-    async def test_enter_ticket_data_invalid_params(
-        self,
-        mock_user: User,
-        mock_message: Message,
-        mock_update: Update,
-        mock_logger: Any,
-    ) -> None:
-        with patch("app.handlers.logger", mock_logger):
-            await enter_ticket_data(mock_update, None)
-        mock_message.reply_text.assert_awaited_once()
-        mock_logger.bind.assert_called_once()
-        mock_logger.bind.return_value.debug.assert_called_once_with(
-            "Wrong ticket params"
-        )
-
-    async def test_enter_ticket_data_valid_params(
-        self,
-        mock_user: User,
-        mock_message: Message,
-        mock_update: Update,
-        mock_logger: Any,
-        mock_context: ContextTypes.DEFAULT_TYPE,
-        valid_ticket_params_str: str,
-    ) -> None:
-        mock_message.text = valid_ticket_params_str
-        await enter_ticket_data(mock_update, mock_context)
-        mock_message.reply_text.assert_awaited_once_with(
-            "🔍 Начинаю проверку билетов One → two на three four\nЯ сообщу, как только билет появится в продаже."
-        )
-
-    async def test_start_ticket_checking(
-        self, valid_ticket_params_str: str, chat_id: int
-    ) -> None:
-        mock_bot = MagicMock(spec=Bot)
-        params = valid_ticket_params_str.split()
-        with patch("app.handlers.check_tickets", new_callable=AsyncMock) as mock_check:
-            mock_check.return_value = True
-            await start_ticket_checking(mock_bot, params, chat_id)
-            mock_check.assert_awaited_once()
-            mock_bot.send_message.assert_awaited_once_with(
-                chat_id=chat_id,
-                text="✅ Билет появился в продаже! One → two three four",
-            )
 
     async def test_validate_ticket_params_success(
         self,
@@ -167,8 +109,9 @@ class TestHandlers:
             valid_params, mock_soup, mock_bot, chat_id
         )
 
-        assert result is None
+        assert result is False
         mock_bot.send_message.assert_awaited_once_with(
             chat_id=123456789,
-            text="Неверно введены Откуда, Куда и Дата в формате ГГГГ.ММ.ДД через пробел\nНеверная станция",
+            text="❌ <b>Ошибка при поиске маршрута</b>\n\n⚡ <b>Возможные причины:</b>\n• Неправильно указаны станции\n• Нет соединения между станциями\n• Дата указана в прошлом\n\n🔍 <b>Подробности ошибки:</b>\nНеверная станция\n\n📝 <b>Попробуйте снова:</b>\n<code>Толочин Минск-Пассажирский 2025-08-06 07:44</code>",
+            parse_mode="HTML",
         )

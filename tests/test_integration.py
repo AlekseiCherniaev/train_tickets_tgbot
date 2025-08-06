@@ -1,10 +1,10 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from bs4 import BeautifulSoup
 from telegram import Bot
 
-from app.handlers import start_ticket_checking, validate_ticket_params
+from app.handlers import validate_ticket_params
 
 URL = "https://pass.rw.by/ru/route/?from=Толочин&to=Минск-Пассажирский&date=2025-08-07"
 
@@ -57,26 +57,27 @@ class TestIntegration:
         soup = BeautifulSoup(
             VALID_HTML_WITH_TICKET.replace("15:29", "14:00"), "html.parser"
         )
-        train = await validate_ticket_params(params, soup, mock_bot, chat_id)
-        assert train is None
+        result = await validate_ticket_params(params, soup, mock_bot, chat_id)
+        assert result is False
         mock_bot.send_message.assert_awaited_once()
 
     async def test_validate_ticket_params_with_error(
         self, params: list[str], mock_bot: Bot, chat_id: int
     ) -> None:
         soup = BeautifulSoup(ERROR_HTML, "html.parser")
-        train = await validate_ticket_params(params, soup, mock_bot, chat_id)
-        assert train is None
+        result = await validate_ticket_params(params, soup, mock_bot, chat_id)
+        assert result is False
         mock_bot.send_message.assert_awaited_once()
 
-    async def test_start_ticket_checking_success(
-        self, params: list[str], chat_id: int
-    ) -> None:
-        bot = AsyncMock(spec=Bot)
-        with patch("app.handlers.check_tickets", return_value=True):
-            await start_ticket_checking(bot, params, chat_id=1234)
+    async def test_validate_ticket_params_success(self, mock_bot):
+        params = ["Толочин", "Минск-Пассажирский", "2023-12-25", "08:00"]
+        chat_id = 12345
 
-            bot.send_message.assert_awaited_once_with(
-                chat_id=1234,
-                text=f"✅ Билет появился в продаже! {params[0]} → {params[1]} {params[2]} {params[3]}",
-            )
+        mock_html = """
+        <div class="sch-table__time train-from-time">08:00</div>
+        """
+        soup = BeautifulSoup(mock_html, "html.parser")
+
+        result = await validate_ticket_params(params, soup, mock_bot, chat_id)
+        assert result is True
+        mock_bot.send_message.assert_not_called()
