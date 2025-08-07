@@ -38,8 +38,9 @@ A Telegram bot that helps you find available train tickets on the Belarusian Rai
 
 1. Send your search request in the specified format
 2. Bot will validate your input and confirm the search
-3. Bot continuously checks ticket availability every 5 minutes
-4. You'll receive instant notification when tickets become available
+3. Bot continuously checks ticket availability every 5 seconds
+4. If someone cancels their ticket (which happens quite often),
+   you will receive an instant notification that a ticket has become available
 5. Use "Cancel" to stop searching or "Another ticket" to add more searches
 
 ### Notes:
