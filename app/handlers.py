@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+from zoneinfo import ZoneInfo
 
 import aiohttp
 import structlog
@@ -14,6 +15,45 @@ from app.task_manager import task_manager
 logger = structlog.getLogger(__name__)
 
 
+def get_minsk_date() -> datetime.date:
+    return (datetime.datetime.now() + datetime.timedelta(hours=3)).date()
+
+
+async def check_current_time(date: str, time_str: str, bot: Bot, chat_id: int) -> bool:
+    input_time = datetime.time.fromisoformat(time_str)
+    input_date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+
+    minsk_now = datetime.datetime.now(ZoneInfo("Europe/Minsk"))
+    current_date = minsk_now.date()
+    current_time = minsk_now.time()
+
+    if (
+        len(time_str) != 5
+        or input_date <= current_date
+        or (input_date == current_date and input_time < current_time)
+    ):
+        await bot.send_message(
+            chat_id=chat_id,
+            text="❌ <b>Ошибка при поиске маршрута</b>\n\n"
+            "⚡ <b>Возможные причины:</b>\n"
+            "• Неправильно указано время\n"
+            "• Время указано в прошлом\n"
+            f"📝 <b>Попробуйте снова:</b>\n"
+            f"<code>Толочин Минск-Пассажирский {get_minsk_date()} 07:44</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=ReplyKeyboardMarkup(
+                [["Отмена"]],
+                resize_keyboard=True,
+                one_time_keyboard=True,
+            ),
+        )
+        logger.bind(input_date=input_date, input_time=input_time).debug(
+            "Time is in the past"
+        )
+        return False
+    return True
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     if not update.message or not user:
@@ -26,7 +66,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "📅 <b>Дата:</b> ГГГГ-ММ-ДД\n"
         "⏰ <b>Время:</b> ЧЧ:ММ (24-часовой формат)\n\n"
         "🔹 <b>Пример:</b>\n"
-        f"<code>Толочин  Минск-Пассажирский {datetime.date.today()} 07:44</code>\n\n"
+        f"<code>Толочин  Минск-Пассажирский {get_minsk_date()} 07:44</code>\n\n"
         f"Можно искать до 3 билетов одновременно\n"
     )
     await update.message.reply_html(message)
@@ -42,7 +82,7 @@ async def enter_ticket_data(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         context.user_data = {}
     params = update.message.text.split()
     if len(params) != 4:
-        example_text = f"Толочин Минск-Пассажирский {datetime.date.today()} 07:44"
+        example_text = f"Толочин Минск-Пассажирский {get_minsk_date()} 07:44"
         error_message = (
             "❌ <b>Ошибка ввода данных</b>\n\n"
             "Вы ввели неверное количество параметров:\n"
@@ -106,6 +146,10 @@ async def start_ticket_checking(bot: Bot, params: list[str], chat_id: int) -> No
                 logger.bind(url=url).info(
                     f"Validate tickets params for {params}, chat_id: {chat_id}"
                 )
+                if not await check_current_time(
+                    date=params[2], time_str=params[3], bot=bot, chat_id=chat_id
+                ):
+                    return None
                 soup = BeautifulSoup(await response.text(), "html.parser")
                 if not await validate_ticket_params(
                     params=params, soup=soup, bot=bot, chat_id=chat_id
@@ -196,7 +240,7 @@ async def validate_ticket_params(
             f"🔍 <b>Подробности ошибки:</b>\n"
             f"{error_message}\n\n"
             f"📝 <b>Попробуйте снова:</b>\n"
-            f"<code>Толочин Минск-Пассажирский {datetime.date.today()} 07:44</code>",
+            f"<code>Толочин Минск-Пассажирский {get_minsk_date()} 07:44</code>",
             parse_mode=ParseMode.HTML,
             reply_markup=ReplyKeyboardMarkup(
                 [["Отмена"]],
@@ -217,7 +261,7 @@ async def validate_ticket_params(
             "• Доступность рейсов на выбранное время\n"
             "• Формат времени (ЧЧ:ММ, 24-часовой)\n\n"
             f"🔹 <b>Пример запроса:</b>\n"
-            f"<code>Толочин Минск-Пассажирский {datetime.date.today()} 07:44</code>",
+            f"<code>Толочин Минск-Пассажирский {get_minsk_date()} 07:44</code>",
             parse_mode=ParseMode.HTML,
             reply_markup=ReplyKeyboardMarkup(
                 [["Отмена"]],
@@ -263,7 +307,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "Чтобы начать новый поиск, введите:\n"
         "<code>Откуда Куда Дата Время</code>\n\n"
         "🔹 <b>Пример:</b>\n"
-        f"<code>Толочин Минск-Пассажирский {datetime.date.today()} 07:44</code>\n\n"
+        f"<code>Толочин Минск-Пассажирский {get_minsk_date()} 07:44</code>\n\n"
         "Или нажмите /start для справки",
         parse_mode=ParseMode.HTML,
         reply_markup=ReplyKeyboardRemove(),
@@ -286,7 +330,7 @@ async def add_ticket(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         "📅 <b>Дата:</b> ГГГГ-ММ-ДД\n"
         "⏰ <b>Время:</b> ЧЧ:ММ (24-часовой формат)\n\n"
         "🔹 <b>Пример:</b>\n"
-        f"<code>Толочин  Минск-Пассажирский  {datetime.date.today()} 07:44</code>\n\n",
+        f"<code>Толочин  Минск-Пассажирский  {get_minsk_date()} 07:44</code>\n\n",
         parse_mode=ParseMode.HTML,
     )
     logger.debug(f"User {update.effective_user.username} wants to add another ticket")
