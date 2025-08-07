@@ -6,10 +6,7 @@ from bs4 import BeautifulSoup
 from telegram import User, Message, Update, Bot
 from telegram.ext import ContextTypes
 
-from app.handlers import (
-    start,
-    validate_ticket_params,
-)
+from app.handlers import start, validate_rzd_response
 
 
 @pytest.fixture
@@ -89,9 +86,7 @@ class TestHandlers:
         chat_id: int,
     ) -> None:
         mock_soup.find.side_effect = [None, None, MagicMock(text="15:00")]
-        result = await validate_ticket_params(
-            valid_params, mock_soup, mock_bot, chat_id
-        )
+        result = await validate_rzd_response(valid_params, mock_soup, mock_bot, chat_id)
         assert result is not None
         mock_bot.send_message.assert_not_awaited()
 
@@ -105,9 +100,7 @@ class TestHandlers:
         error_div = MagicMock()
         error_div.text = "Неверная станция"
         mock_soup.find.side_effect = [error_div, None, None]
-        result = await validate_ticket_params(
-            valid_params, mock_soup, mock_bot, chat_id
-        )
+        result = await validate_rzd_response(valid_params, mock_soup, mock_bot, chat_id)
 
         assert result is False
         mock_bot.send_message.assert_awaited_once()

@@ -4,7 +4,7 @@ import pytest
 from bs4 import BeautifulSoup
 from telegram import Bot
 
-from app.handlers import validate_ticket_params
+from app.handlers import validate_rzd_response
 
 URL = "https://pass.rw.by/ru/route/?from=Толочин&to=Минск-Пассажирский&date=2025-08-07"
 
@@ -48,7 +48,7 @@ class TestIntegration:
         self, params: list[str], mock_bot: Bot, chat_id: int
     ) -> None:
         soup = BeautifulSoup(VALID_HTML_WITH_TICKET, "html.parser")
-        train = await validate_ticket_params(params, soup, mock_bot, chat_id)
+        train = await validate_rzd_response(params, soup, mock_bot, chat_id)
         assert train is not None
 
     async def test_validate_ticket_params_invalid_time(
@@ -57,7 +57,7 @@ class TestIntegration:
         soup = BeautifulSoup(
             VALID_HTML_WITH_TICKET.replace("15:29", "14:00"), "html.parser"
         )
-        result = await validate_ticket_params(params, soup, mock_bot, chat_id)
+        result = await validate_rzd_response(params, soup, mock_bot, chat_id)
         assert result is False
         mock_bot.send_message.assert_awaited_once()
 
@@ -65,7 +65,7 @@ class TestIntegration:
         self, params: list[str], mock_bot: Bot, chat_id: int
     ) -> None:
         soup = BeautifulSoup(ERROR_HTML, "html.parser")
-        result = await validate_ticket_params(params, soup, mock_bot, chat_id)
+        result = await validate_rzd_response(params, soup, mock_bot, chat_id)
         assert result is False
         mock_bot.send_message.assert_awaited_once()
 
@@ -78,6 +78,6 @@ class TestIntegration:
         """
         soup = BeautifulSoup(mock_html, "html.parser")
 
-        result = await validate_ticket_params(params, soup, mock_bot, chat_id)
+        result = await validate_rzd_response(params, soup, mock_bot, chat_id)
         assert result is True
         mock_bot.send_message.assert_not_called()
