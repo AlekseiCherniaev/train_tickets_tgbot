@@ -15,39 +15,48 @@ logger = structlog.getLogger("ticket_bot")
 
 
 class TicketBot:
+    CANCEL_KEYWORDS = r"^(Отмена|отмена)$"
+    ADD_TICKET_KEYWORDS = r"^(Ещё один билет|eщё один билет)$"
+    TEXT_FILTER = (
+        filters.TEXT
+        & ~filters.COMMAND
+        & ~filters.Regex(CANCEL_KEYWORDS)
+        & ~filters.Regex(ADD_TICKET_KEYWORDS)
+    )
+
     def __init__(self, token: str) -> None:
         self.token = token
+        self.application: Application | None = None  # type: ignore
 
     def start_bot(self) -> None:
+        """Main entry point for starting the bot."""
         logger.info("Starting bot")
-        self.application = ApplicationBuilder().token(self.token).build()
+        self.application = (
+            ApplicationBuilder().token(self.token).post_stop(self.shutdown).build()
+        )
         self.add_handlers()
-        self.application.post_stop = self.shutdown
+        # self.application.post_stop = self.shutdown
         logger.info("Startup complete")
         self.application.run_polling(allowed_updates=Update.ALL_TYPES)
 
     def add_handlers(self) -> None:
-        self.application.add_handler(CommandHandler("start", start))
-        self.application.add_handler(
-            MessageHandler(
-                filters.TEXT
-                & ~filters.COMMAND
-                & ~filters.Regex(r"^(Отмена|отмена)$")
-                & ~filters.Regex(r"^(Ещё один билет|eщё один билет)$"),
-                enter_ticket_data,
-            )
-        )
-        self.application.add_handler(
-            MessageHandler(filters.Regex(r"^(Отмена|отмена)$"), cancel)
-        )
-        self.application.add_handler(
-            MessageHandler(
-                filters.Regex(r"^(Ещё один билет|eщё один билет)$"), add_ticket
-            )
-        )
+        """Register all handlers with the application."""
+        if not self.application:
+            raise ValueError("Application not initialized. Call start_bot() first.")
+        handlers = [
+            CommandHandler("start", start),
+            MessageHandler(self.TEXT_FILTER, enter_ticket_data),
+            MessageHandler(filters.Regex(self.CANCEL_KEYWORDS), cancel),
+            MessageHandler(filters.Regex(self.ADD_TICKET_KEYWORDS), add_ticket),
+        ]
+
+        for handler in handlers:
+            self.application.add_handler(handler)
         logger.info("All handlers added")
 
-    async def shutdown(self, application: Application) -> None:  # type: ignore
+    @staticmethod
+    async def shutdown(application: Application) -> None:  # type: ignore
+        """Cleanup tasks during bot shutdown."""
         logger.info("Stopping bot")
         active_users = task_manager.get_active_users()
         for user_id in active_users:

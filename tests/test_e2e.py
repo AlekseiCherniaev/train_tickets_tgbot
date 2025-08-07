@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from telegram import Update, Message, User
-from telegram.ext import CallbackContext, Application
+from telegram.ext import CallbackContext, Application, CommandHandler, MessageHandler
 
 from app.bot import TicketBot
 from app.handlers import start, enter_ticket_data, cancel, add_ticket
@@ -36,18 +36,33 @@ def ticket_bot():
 
 
 class TestTicketBot:
+    @pytest.fixture
+    def ticket_bot(self):
+        return TicketBot(token="test_token")
+
     @patch("app.bot.ApplicationBuilder")
     def test_start_bot(self, mock_app_builder, ticket_bot):
         mock_app = MagicMock(spec=Application)
-        mock_app_builder.return_value.token.return_value.build.return_value = mock_app
+        builder_instance = MagicMock()
+        mock_app_builder.return_value = builder_instance
+        builder_instance.token.return_value = builder_instance
+        builder_instance.post_stop.return_value = builder_instance
+        builder_instance.build.return_value = mock_app
         ticket_bot.start_bot()
-        mock_app_builder.return_value.token.assert_called_with("test_token")
-        assert mock_app.add_handler.call_count == 4
+        builder_instance.token.assert_called_once_with("test_token")
+        builder_instance.post_stop.assert_called_once_with(ticket_bot.shutdown)
+        mock_app.run_polling.assert_called_once()
 
     def test_add_handlers(self, ticket_bot):
-        ticket_bot.application = MagicMock()
+        mock_app = MagicMock(spec=Application)
+        ticket_bot.application = mock_app
         ticket_bot.add_handlers()
-        assert ticket_bot.application.add_handler.call_count == 4
+
+        assert mock_app.add_handler.call_count == 4
+        handlers_added = [args[0][0] for args in mock_app.add_handler.call_args_list]
+
+        assert sum(isinstance(h, CommandHandler) for h in handlers_added) == 1
+        assert sum(isinstance(h, MessageHandler) for h in handlers_added) == 3
 
 
 class TestHandlers:
