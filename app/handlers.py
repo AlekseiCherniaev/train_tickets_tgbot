@@ -4,10 +4,17 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 import structlog
+from aiohttp import ClientResponse, ClientSession
 from bs4 import BeautifulSoup
 from telegram import Update, Bot, ReplyKeyboardRemove, ReplyKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 from app.constants import DATE_FORMAT, EXAMPLE_ROUTE, headers
 from app.settings import settings
@@ -18,6 +25,10 @@ logger = structlog.getLogger(__name__)
 
 def get_minsk_date() -> datetime.date:
     return (datetime.datetime.now(ZoneInfo("Europe/Minsk"))).date()
+
+
+def get_proxy_url() -> str:
+    return f"http://{settings.proxy_login}:{settings.proxy_password}@{settings.proxy_host}:{settings.proxy_port}"
 
 
 async def validate_time_input(
@@ -241,6 +252,27 @@ async def validate_rzd_response(
     return True
 
 
+@retry(
+    stop=stop_after_attempt(settings.retry_attempts),
+    wait=wait_exponential(multiplier=1, min=1, max=3),
+    retry=retry_if_exception_type((aiohttp.ClientError, asyncio.TimeoutError)),
+    reraise=True,
+)
+async def make_get_request(url: str, session: ClientSession) -> ClientResponse:
+    try:
+        timeout = aiohttp.ClientTimeout(total=settings.request_timeout)
+        kwargs = {"headers": headers, "timeout": timeout}
+        if settings.use_proxy:
+            kwargs["proxy"] = get_proxy_url()
+            logger.debug("Using proxy...")
+        else:
+            logger.debug("Using direct connection...")
+        return await session.get(url, **kwargs)  # type: ignore
+    except Exception as e:
+        logger.error(f"Request failed: {e}", exception=e)
+        raise e
+
+
 async def start_ticket_checking(bot: Bot, params: list[str], chat_id: int) -> None:
     """Main function to check ticket availability periodically."""
     url = (
@@ -254,7 +286,7 @@ async def start_ticket_checking(bot: Bot, params: list[str], chat_id: int) -> No
             ):
                 return None
 
-            response = await session.get(url, headers=headers)
+            response = await make_get_request(url=url, session=session)
             if response.status != 200:
                 raise Exception(f"HTTP error {response.status}")
 
@@ -282,14 +314,21 @@ async def start_ticket_checking(bot: Bot, params: list[str], chat_id: int) -> No
             await monitor_ticket_availability(session, url, params, bot, chat_id)
             return None
 
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            logger.error("Ticket checking failed after retries: ", error=str(e))
+            await bot.send_message(
+                chat_id=chat_id,
+                text=f"❌ Не удалось проверить билеты {params[0]} → {params[1]} "
+                f"на {params[2]} {params[3]}. Сервер не отвечает.\n"
+                f"Попробуйте снова",
+            )
+            return None
         except Exception as e:
-            logger.bind(
-                response_text=getattr(e, "text", None),
-            ).error(f"Ticket checking {e}")
+            logger.error(f"Ticket checking error: {e}")
             await bot.send_message(
                 chat_id=chat_id,
                 text=f"❌ Ошибка при проверке билетов {params[0]} → {params[1]} "
-                f"на {params[2]} {params[3]}, возможно, сайт не доступен",
+                f"на {params[2]} {params[3]}",
             )
             return None
 
@@ -300,8 +339,13 @@ async def monitor_ticket_availability(
     """Periodically check ticket availability."""
     while True:
         try:
-            response = await session.get(url, headers=headers)
+            response = await make_get_request(url=url, session=session)
+
             if response.status != 200:
+                logger.error(
+                    f"HTTP error {response.status} when monitoring ticket availability",
+                    params=params,
+                )
                 await asyncio.sleep(settings.retry_time)
                 continue
 
@@ -400,10 +444,13 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         parse_mode=ParseMode.HTML,
         reply_markup=ReplyKeyboardRemove(),
     )
+    logger.debug(
+        f"User {update.effective_user.username} cancelled {cancelled_count} tickets"  # type: ignore
+    )
 
 
 async def add_ticket(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle request to add another ticket search."""
+    """Handle a request to add another ticket search."""
     if (
         not update
         or not update.effective_user
@@ -412,6 +459,7 @@ async def add_ticket(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         or update.message.text.strip().lower() != "ещё один билет"
     ):
         return
+
     example = f"{EXAMPLE_ROUTE} {get_minsk_date().strftime(DATE_FORMAT)} 07:44"
     await update.message.reply_text(
         f"📝 <b>Лимит одновременного поиска: {settings.max_concurrent_searches}</b>\n"
