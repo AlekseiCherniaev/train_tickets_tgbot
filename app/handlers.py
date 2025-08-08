@@ -34,9 +34,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"Можно искать до {settings.max_concurrent_searches} билетов одновременно\n"
     )
     await update.message.reply_html(message)
-    logger.bind(user_id=user.id, username=user.username).info(
-        f"User {user.first_name} {user.last_name} started bot"
-    )
+    logger.bind(
+        user_id=user.id, username=user.username, chat_id=update.message.chat_id
+    ).info(f"User {user.first_name} {user.last_name} started bot")
 
 
 async def handle_invalid_input(update: Update, example: str) -> None:
@@ -60,7 +60,7 @@ async def handle_invalid_input(update: Update, example: str) -> None:
             one_time_keyboard=True,
         ),
     )
-    logger.debug("Wrong ticket params", params=update.message.text.split())  # type: ignore
+    logger.bind(params=update.message.text).debug("Wrong ticket params")  # type: ignore
 
 
 async def create_search_task(
@@ -116,6 +116,10 @@ async def enter_ticket_data(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 one_time_keyboard=True,
             ),
         )
+        user = update.effective_user
+        logger.bind(
+            user_id=user.id, username=user.username, chat_id=update.message.chat_id
+        ).debug(f"User {user.first_name} {user.last_name} reached task limit")
     return None
 
 
@@ -123,6 +127,9 @@ async def validate_time_input(
     date_str: str, time_str: str, bot: Bot, chat_id: int
 ) -> bool:
     """Validate if the input time is in the future."""
+    logger.bind(date_str=date_str, time_str=time_str, chat_id=chat_id).debug(
+        "Validating time params..."
+    )
     try:
         input_time = datetime.time.fromisoformat(time_str)
         input_date = datetime.datetime.strptime(date_str, DATE_FORMAT).date()
@@ -140,7 +147,7 @@ async def validate_time_input(
                 one_time_keyboard=True,
             ),
         )
-        logger.bind(date_str=date_str, time_str=time_str).debug(
+        logger.bind(date_str=date_str, time_str=time_str, chat_id=chat_id).debug(
             "Wrong date or time format"
         )
         return False
@@ -169,10 +176,13 @@ async def validate_time_input(
                 one_time_keyboard=True,
             ),
         )
-        logger.bind(input_date=input_date, input_time=input_time).debug(
-            "Time is in the past"
-        )
+        logger.bind(
+            input_date=input_date, input_time=input_time, chat_id=chat_id
+        ).debug("Time is in the past")
         return False
+    logger.bind(
+        checked_date=input_date, checked_time=input_time, chat_id=chat_id
+    ).debug(f"Valid time params: {date_str}, {time_str}")
     return True
 
 
@@ -180,6 +190,7 @@ async def validate_rzd_response(
     params: list[str], soup: BeautifulSoup, bot: Bot, chat_id: int
 ) -> bool:
     """Validate the response from the RZD website."""
+    logger.bind(params=params, chat_id=chat_id).debug("Validating train params...")
     error_elements = {
         "error_content": soup.find("div", class_="error_content"),
         "error_title": soup.find("div", class_="error_title"),
@@ -208,7 +219,9 @@ async def validate_rzd_response(
                 one_time_keyboard=True,
             ),
         )
-        logger.debug("RZD request error", params=params, error=error_message)
+        logger.bind(params=params, chat_id=chat_id, error_message=error_message).debug(
+            "RZD request error"
+        )
         return False
 
     # Check if train time exists
@@ -232,9 +245,9 @@ async def validate_rzd_response(
                 one_time_keyboard=True,
             ),
         )
-        logger.debug("Departure time not found", params=params, time=params[3])
+        logger.bind(params=params, chat_id=chat_id).debug("Departure time not found")
         return False
-
+    logger.bind(params=params, chat_id=chat_id).debug(f"Valid train params: {params}")
     return True
 
 
@@ -245,7 +258,6 @@ async def start_ticket_checking(bot: Bot, params: list[str], chat_id: int) -> No
     )
     async with aiohttp.ClientSession() as session:
         try:
-            logger.debug("Validating ticket params", params=params, chat_id=chat_id)
             if not await validate_time_input(
                 date_str=params[2], time_str=params[3], bot=bot, chat_id=chat_id
             ):
@@ -280,7 +292,9 @@ async def start_ticket_checking(bot: Bot, params: list[str], chat_id: int) -> No
             return None
 
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-            logger.error("Ticket checking failed after retries: ", error=str(e))
+            logger.bind(url=url, error=str(e), chat_id=chat_id).error(
+                f"Ticket checking failed after retries: {settings.retry_attempts}"
+            )
             await bot.send_message(
                 chat_id=chat_id,
                 text=f"❌ Не удалось проверить билеты {params[0]} → {params[1]} "
@@ -289,11 +303,14 @@ async def start_ticket_checking(bot: Bot, params: list[str], chat_id: int) -> No
             )
             return None
         except Exception as e:
-            logger.error(f"Ticket checking error: {e}")
+            logger.bind(url=url, error=str(e), chat_id=chat_id).error(
+                "Ticket checking error"
+            )
             await bot.send_message(
                 chat_id=chat_id,
                 text=f"❌ Ошибка при проверке билетов {params[0]} → {params[1]} "
-                f"на {params[2]} {params[3]}",
+                f"на {params[2]} {params[3]}"
+                f"Попробуйте снова",
             )
             return None
 
@@ -307,9 +324,8 @@ async def monitor_ticket_availability(
             response = await make_get_request(url=url, session=session)
 
             if response.status != 200:
-                logger.error(
-                    f"HTTP error {response.status} when monitoring ticket availability",
-                    params=params,
+                logger.bind(url=url, chat_id=chat_id).error(
+                    f"HTTP error {response.status} when monitoring ticket availability"
                 )
                 await asyncio.sleep(calculate_retry_time())
                 continue
@@ -329,8 +345,8 @@ async def monitor_ticket_availability(
                 )
                 is None
             ):
-                logger.error(
-                    "Target block not found, wrong train parameters", params=params
+                logger.bind(url=url, params=params, chat_id=chat_id).error(
+                    "Target block not found, wrong train parameters"
                 )
                 await bot.send_message(
                     chat_id=chat_id,
@@ -359,13 +375,28 @@ async def monitor_ticket_availability(
                         one_time_keyboard=True,
                     ),
                 )
-                logger.info("Tickets found", params=params, chat_id=chat_id)
+                logger.bind(url=url, chat_id=chat_id, params=params).info(
+                    "Tickets found"
+                )
             else:
-                logger.debug("No available tickets", params=params, chat_id=chat_id)
+                logger.bind(url=url, chat_id=chat_id, params=params).debug(
+                    "No tickets found"
+                )
             await asyncio.sleep(calculate_retry_time())
 
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            logger.bind(url=url, error=str(e)).error(
+                f"Ticket checking failed after retries: {settings.retry_attempts}"
+            )
+            await bot.send_message(
+                chat_id=chat_id,
+                text=f"❌ Не удалось проверить билеты {params[0]} → {params[1]} "
+                f"на {params[2]} {params[3]}. Сервер не отвечает.\n"
+                f"Попробуйте снова",
+            )
+            return None
         except Exception as e:
-            logger.error("Monitoring error", error=str(e))
+            logger.bind(url=url, error=str(e)).error("Monitoring error")
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -393,8 +424,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 except asyncio.CancelledError:
                     cancelled_count += 1
                 except Exception as e:
-                    logger.error(
-                        "Task cancellation error", task_key=task_key, error=str(e)
+                    logger.bind(task_key=task_key, error=str(e)).error(
+                        "Task cancellation error"
                     )
             context.user_data.pop(task_key, None)
 
@@ -409,8 +440,13 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         parse_mode=ParseMode.HTML,
         reply_markup=ReplyKeyboardRemove(),
     )
-    logger.debug(
-        f"User {update.effective_user.username} cancelled {cancelled_count} tickets"  # type: ignore
+    user = update.effective_user
+    logger.bind(
+        user_id=user.id,  # type: ignore
+        username=user.username,  # type: ignore
+        chat_id=update.message.chat_id,
+    ).debug(
+        f"User {user.first_name} {user.last_name} cancelled {cancelled_count} tickets"  # type: ignore
     )
 
 
@@ -436,4 +472,7 @@ async def add_ticket(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         f"<code>{example}</code>\n\n",
         parse_mode=ParseMode.HTML,
     )
-    logger.debug(f"User {update.effective_user.username} wants to add another ticket")
+    user = update.effective_user
+    logger.bind(
+        user_id=user.id, username=user.username, chat_id=update.message.chat_id
+    ).debug(f"User {user.first_name} {user.last_name} wants to add another ticket")

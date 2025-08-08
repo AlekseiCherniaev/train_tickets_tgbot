@@ -30,12 +30,11 @@ class TicketBot:
 
     def start_bot(self) -> None:
         """Main entry point for starting the bot."""
-        logger.info("Starting bot")
+        logger.info("Starting bot...")
         self.application = (
             ApplicationBuilder().token(self.token).post_stop(self.shutdown).build()
         )
         self.add_handlers()
-        # self.application.post_stop = self.shutdown
         logger.info("Startup complete")
         self.application.run_polling(allowed_updates=Update.ALL_TYPES)
 

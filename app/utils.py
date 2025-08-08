@@ -39,12 +39,12 @@ async def make_get_request(url: str, session: ClientSession) -> ClientResponse:
         kwargs = {"headers": headers, "timeout": timeout}
         if settings.use_proxy:
             kwargs["proxy"] = get_proxy_url()
-            logger.debug("Using proxy...")
+            logger.bind(url=url).debug("Making request with proxy...")
         else:
-            logger.debug("Using direct connection...")
+            logger.bind(url=url).debug("Making request without proxy...")
         return await session.get(url, **kwargs)  # type: ignore
     except Exception as e:
-        logger.error(f"Request failed: {e}", exception=e)
+        logger.bind(url=url).error(f"Request failed: {e}", exception=e)
         raise e
 
 
