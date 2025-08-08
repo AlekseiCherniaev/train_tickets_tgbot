@@ -4,88 +4,17 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 import structlog
-from aiohttp import ClientResponse, ClientSession
 from bs4 import BeautifulSoup
 from telegram import Update, Bot, ReplyKeyboardRemove, ReplyKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type,
-)
 
-from app.constants import DATE_FORMAT, EXAMPLE_ROUTE, headers
+from app.constants import DATE_FORMAT, EXAMPLE_ROUTE
 from app.settings import settings
 from app.task_manager import task_manager
+from app.utils import get_minsk_date, make_get_request
 
 logger = structlog.getLogger(__name__)
-
-
-def get_minsk_date() -> datetime.date:
-    return (datetime.datetime.now(ZoneInfo("Europe/Minsk"))).date()
-
-
-def get_proxy_url() -> str:
-    return f"http://{settings.proxy_login}:{settings.proxy_password}@{settings.proxy_host}:{settings.proxy_port}"
-
-
-async def validate_time_input(
-    date_str: str, time_str: str, bot: Bot, chat_id: int
-) -> bool:
-    """Validate if the input time is in the future."""
-    try:
-        input_time = datetime.time.fromisoformat(time_str)
-        input_date = datetime.datetime.strptime(date_str, DATE_FORMAT).date()
-    except ValueError:
-        example = f"{EXAMPLE_ROUTE} {get_minsk_date().strftime(DATE_FORMAT)} 07:44"
-        await bot.send_message(
-            chat_id=chat_id,
-            text="❌ <b>Неверный формат даты или времени</b>\n\n"
-            f"📝 <b>Попробуйте снова:</b>\n"
-            f"<code>{example}</code>",
-            parse_mode=ParseMode.HTML,
-            reply_markup=ReplyKeyboardMarkup(
-                [["Отмена"]],
-                resize_keyboard=True,
-                one_time_keyboard=True,
-            ),
-        )
-        logger.bind(date_str=date_str, time_str=time_str).debug(
-            "Wrong date or time format"
-        )
-        return False
-
-    minsk_now = datetime.datetime.now(ZoneInfo("Europe/Minsk"))
-    current_date = minsk_now.date()
-    current_time = minsk_now.time()
-    if (
-        len(time_str) != 5
-        or input_date < current_date
-        or (input_date == current_date and input_time < current_time)
-    ):
-        example = f"{EXAMPLE_ROUTE} {get_minsk_date().strftime(DATE_FORMAT)} 07:44"
-        await bot.send_message(
-            chat_id=chat_id,
-            text="❌ <b>Ошибка при поиске маршрута</b>\n\n"
-            "⚡ <b>Возможные причины:</b>\n"
-            "• Неправильно указано время\n"
-            "• Время указано в прошлом\n"
-            f"📝 <b>Попробуйте снова:</b>\n"
-            f"<code>{example}</code>",
-            parse_mode=ParseMode.HTML,
-            reply_markup=ReplyKeyboardMarkup(
-                [["Отмена"]],
-                resize_keyboard=True,
-                one_time_keyboard=True,
-            ),
-        )
-        logger.bind(input_date=input_date, input_time=input_time).debug(
-            "Time is in the past"
-        )
-        return False
-    return True
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -190,6 +119,63 @@ async def enter_ticket_data(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     return None
 
 
+async def validate_time_input(
+    date_str: str, time_str: str, bot: Bot, chat_id: int
+) -> bool:
+    """Validate if the input time is in the future."""
+    try:
+        input_time = datetime.time.fromisoformat(time_str)
+        input_date = datetime.datetime.strptime(date_str, DATE_FORMAT).date()
+    except ValueError:
+        example = f"{EXAMPLE_ROUTE} {get_minsk_date().strftime(DATE_FORMAT)} 07:44"
+        await bot.send_message(
+            chat_id=chat_id,
+            text="❌ <b>Неверный формат даты или времени</b>\n\n"
+            f"📝 <b>Попробуйте снова:</b>\n"
+            f"<code>{example}</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=ReplyKeyboardMarkup(
+                [["Отмена"]],
+                resize_keyboard=True,
+                one_time_keyboard=True,
+            ),
+        )
+        logger.bind(date_str=date_str, time_str=time_str).debug(
+            "Wrong date or time format"
+        )
+        return False
+
+    minsk_now = datetime.datetime.now(ZoneInfo("Europe/Minsk"))
+    current_date = minsk_now.date()
+    current_time = minsk_now.time()
+    if (
+        len(time_str) != 5
+        or input_date < current_date
+        or (input_date == current_date and input_time < current_time)
+    ):
+        example = f"{EXAMPLE_ROUTE} {get_minsk_date().strftime(DATE_FORMAT)} 07:44"
+        await bot.send_message(
+            chat_id=chat_id,
+            text="❌ <b>Ошибка при поиске маршрута</b>\n\n"
+            "⚡ <b>Возможные причины:</b>\n"
+            "• Неправильно указано время\n"
+            "• Время указано в прошлом\n"
+            f"📝 <b>Попробуйте снова:</b>\n"
+            f"<code>{example}</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=ReplyKeyboardMarkup(
+                [["Отмена"]],
+                resize_keyboard=True,
+                one_time_keyboard=True,
+            ),
+        )
+        logger.bind(input_date=input_date, input_time=input_time).debug(
+            "Time is in the past"
+        )
+        return False
+    return True
+
+
 async def validate_rzd_response(
     params: list[str], soup: BeautifulSoup, bot: Bot, chat_id: int
 ) -> bool:
@@ -250,27 +236,6 @@ async def validate_rzd_response(
         return False
 
     return True
-
-
-@retry(
-    stop=stop_after_attempt(settings.retry_attempts),
-    wait=wait_exponential(multiplier=1, min=1, max=3),
-    retry=retry_if_exception_type((aiohttp.ClientError, asyncio.TimeoutError)),
-    reraise=True,
-)
-async def make_get_request(url: str, session: ClientSession) -> ClientResponse:
-    try:
-        timeout = aiohttp.ClientTimeout(total=settings.request_timeout)
-        kwargs = {"headers": headers, "timeout": timeout}
-        if settings.use_proxy:
-            kwargs["proxy"] = get_proxy_url()
-            logger.debug("Using proxy...")
-        else:
-            logger.debug("Using direct connection...")
-        return await session.get(url, **kwargs)  # type: ignore
-    except Exception as e:
-        logger.error(f"Request failed: {e}", exception=e)
-        raise e
 
 
 async def start_ticket_checking(bot: Bot, params: list[str], chat_id: int) -> None:
