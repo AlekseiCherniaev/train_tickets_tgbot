@@ -9,7 +9,7 @@ from telegram import Update, Bot, ReplyKeyboardRemove, ReplyKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from app.constants import DATE_FORMAT, EXAMPLE_ROUTE
+from app.constants import DATE_FORMAT, EXAMPLE_ROUTE, headers
 from app.settings import settings
 from app.task_manager import task_manager
 
@@ -254,7 +254,7 @@ async def start_ticket_checking(bot: Bot, params: list[str], chat_id: int) -> No
             ):
                 return None
 
-            response = await session.get(url)
+            response = await session.get(url, headers=headers)
             if response.status != 200:
                 raise Exception(f"HTTP error {response.status}")
 
@@ -281,8 +281,11 @@ async def start_ticket_checking(bot: Bot, params: list[str], chat_id: int) -> No
 
             await monitor_ticket_availability(session, url, params, bot, chat_id)
             return None
+
         except Exception as e:
-            logger.error(f"Ticket checking {e}")
+            logger.bind(
+                response_text=getattr(e, "text", None),
+            ).error(f"Ticket checking {e}")
             await bot.send_message(
                 chat_id=chat_id,
                 text=f"❌ Ошибка при проверке билетов {params[0]} → {params[1]} "
@@ -297,7 +300,7 @@ async def monitor_ticket_availability(
     """Periodically check ticket availability."""
     while True:
         try:
-            response = await session.get(url)
+            response = await session.get(url, headers=headers)
             if response.status != 200:
                 await asyncio.sleep(settings.retry_time)
                 continue
@@ -323,7 +326,8 @@ async def monitor_ticket_availability(
                 await bot.send_message(
                     chat_id=chat_id,
                     text=f"❌ Ошибка при проверке билетов {params[0]} → {params[1]} "
-                    f"неверно указаны станции или время",
+                    f"Неверно указаны станции или время"
+                    f"Попробуйте снова",
                     reply_markup=ReplyKeyboardMarkup(
                         [["Отмена"]],
                         resize_keyboard=True,

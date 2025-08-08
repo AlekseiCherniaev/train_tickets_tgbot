@@ -837,7 +837,7 @@ requires-dist = [
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pytest-asyncio", specifier = ">=1.1.0" },
-    { name = "python-telegram-bot", extras = ["test"], specifier = ">=22.3" },
+    { name = "python-telegram-bot", specifier = ">=22.3" },
     { name = "structlog", specifier = ">=25.4.0" },
 ]
 
