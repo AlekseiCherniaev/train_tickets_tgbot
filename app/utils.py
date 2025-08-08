@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import random
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -45,3 +46,8 @@ async def make_get_request(url: str, session: ClientSession) -> ClientResponse:
     except Exception as e:
         logger.error(f"Request failed: {e}", exception=e)
         raise e
+
+
+def calculate_retry_time(base_delay: float = settings.retry_time) -> float:
+    variation = base_delay * 0.25
+    return random.uniform(base_delay - variation, base_delay + variation)

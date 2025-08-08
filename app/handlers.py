@@ -12,7 +12,7 @@ from telegram.ext import ContextTypes
 from app.constants import DATE_FORMAT, EXAMPLE_ROUTE
 from app.settings import settings
 from app.task_manager import task_manager
-from app.utils import get_minsk_date, make_get_request
+from app.utils import get_minsk_date, make_get_request, calculate_retry_time
 
 logger = structlog.getLogger(__name__)
 
@@ -311,7 +311,7 @@ async def monitor_ticket_availability(
                     f"HTTP error {response.status} when monitoring ticket availability",
                     params=params,
                 )
-                await asyncio.sleep(settings.retry_time)
+                await asyncio.sleep(calculate_retry_time())
                 continue
 
             soup = BeautifulSoup(await response.text(), "html.parser")
@@ -362,7 +362,7 @@ async def monitor_ticket_availability(
                 logger.info("Tickets found", params=params, chat_id=chat_id)
             else:
                 logger.debug("No available tickets", params=params, chat_id=chat_id)
-            await asyncio.sleep(settings.retry_time)
+            await asyncio.sleep(calculate_retry_time())
 
         except Exception as e:
             logger.error("Monitoring error", error=str(e))
