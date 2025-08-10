@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     retry_time: float = 9.0  # seconds for another ticket finding retry
     max_concurrent_searches: int = 3
-    request_timeout: float = 3.5
-    retry_attempts: int = 7
+    request_timeout: float = 7
+    retry_attempts: int = 8
     # proxy settings
     use_proxy: bool = False
     proxy_login: str = ""

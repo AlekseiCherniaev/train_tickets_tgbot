@@ -15,6 +15,7 @@ dependencies = [
     "python-telegram-bot>=22.3",
     "structlog>=25.4.0",
     "tenacity>=9.1.2",
+    "types-psycopg2>=2.9.21.20250809",
 ]
 
 [dependency-groups]
