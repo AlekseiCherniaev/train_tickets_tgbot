@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     proxy_password: str = ""
     proxy_host: str = ""
     proxy_port: int = 10500
+    # db settings
+    postgres_user: str = "postgres"
+    postgres_password: str = "postgres"
+    postgres_db: str = "postgres"
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
 
 
 settings = Settings()
