@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     postgres_password: str = "postgres"
     postgres_db: str = "postgres"
     postgres_host: str = "localhost"
-    postgres_port: int = 5432
+    postgres_port: int = 5430
+    postgres_port_external: int = 5432
 
 
 settings = Settings()

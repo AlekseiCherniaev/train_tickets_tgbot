@@ -9,6 +9,7 @@ logger = structlog.getLogger(__name__)
 class TicketRequestRepository:
     def __init__(self, db_connection: PostgresDatabaseConnection) -> None:
         self._db = db_connection
+        self._db.connect()
 
     def create_table(self) -> None:
         with self._db.connection.cursor() as cursor:

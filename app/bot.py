@@ -8,7 +8,10 @@ from telegram.ext import (
     Application,
 )
 
+from app.db.database_connection import PostgresDatabaseConnection
+from app.db.ticket_request_repo import TicketRequestRepository
 from app.handlers import start, enter_ticket_data, cancel, add_ticket
+from app.settings import settings
 from app.task_manager import task_manager
 
 logger = structlog.getLogger("ticket_bot")
@@ -27,10 +30,20 @@ class TicketBot:
     def __init__(self, token: str) -> None:
         self.token = token
         self.application: Application | None = None  # type: ignore
+        self.ticket_repo = TicketRequestRepository(
+            PostgresDatabaseConnection(
+                dbname=settings.postgres_db,
+                dbuser=settings.postgres_user,
+                dbpassword=settings.postgres_password,
+                dbhost=settings.postgres_host,
+                dbport=settings.postgres_port_external,
+            )
+        )
 
     def start_bot(self) -> None:
         """Main entry point for starting the bot."""
         logger.info("Starting bot...")
+        self.ticket_repo.create_table()
         self.application = (
             ApplicationBuilder().token(self.token).post_stop(self.shutdown).build()
         )
