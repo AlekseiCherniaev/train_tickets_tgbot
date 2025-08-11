@@ -1,5 +1,3 @@
-from abc import ABC, abstractmethod
-
 import psycopg2
 import structlog
 from psycopg2.extras import DictCursor
@@ -7,7 +5,7 @@ from psycopg2.extras import DictCursor
 logger = structlog.get_logger(__name__)
 
 
-class DatabaseConnection(ABC):
+class PostgresDatabaseConnection:
     def __init__(
         self, dbname: str, dbuser: str, dbpassword: str, dbhost: str, dbport: int = 5432
     ) -> None:
@@ -18,16 +16,6 @@ class DatabaseConnection(ABC):
         self._port = dbport
         self._connection: psycopg2.extensions.connection | None = None
 
-    @abstractmethod
-    def connect(self) -> None:
-        pass
-
-    @abstractmethod
-    def disconnect(self) -> None:
-        pass
-
-
-class PostgresDatabaseConnection(DatabaseConnection):
     def connect(self) -> None:
         try:
             self._connection = psycopg2.connect(
@@ -47,3 +35,9 @@ class PostgresDatabaseConnection(DatabaseConnection):
         if self._connection:
             self._connection.close()
             logger.info("Database connection closed successfully")
+
+    @property
+    def connection(self) -> psycopg2.extensions.connection:
+        if not self._connection:
+            raise ConnectionError("Database is not connected")
+        return self._connection
