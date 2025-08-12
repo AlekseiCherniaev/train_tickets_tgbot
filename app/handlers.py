@@ -174,7 +174,6 @@ async def add_ticket(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     example = f"{EXAMPLE_ROUTE} {get_minsk_date().strftime(DATE_FORMAT)} 07:44"
     await update.message.reply_text(
-        f"📝 <b>Лимит одновременного поиска: {settings.max_concurrent_searches}</b>\n"
         "📝 <b>Введите данные в формате:</b>\n"
         "<code>Откуда  Куда  Дата  Время</code>\n\n"
         "📅 <b>Дата:</b> ГГГГ-ММ-ДД\n"

@@ -131,6 +131,5 @@ class TestHandlers:
         await add_ticket(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         assert (
-            "Лимит одновременного поиска"
-            in mock_update.message.reply_text.call_args[0][0]
+            "Введите данные в формате" in mock_update.message.reply_text.call_args[0][0]
         )
