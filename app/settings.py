@@ -8,10 +8,9 @@ class Settings(BaseSettings):
 
     bot_token: str = "BOT_TOKEN"
     log_level: str = "INFO"
-    retry_time: float = 3.0  # seconds for another ticket finding retry
-    max_concurrent_searches: int = 3
+    retry_time: float = 7.5  # seconds for another ticket finding retry
     request_timeout: float = 7
-    retry_attempts: int = 8
+    retry_attempts: int = 9
     # proxy settings
     use_proxy: bool = False
     proxy_login: str = ""

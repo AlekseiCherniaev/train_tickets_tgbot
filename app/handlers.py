@@ -35,7 +35,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "⏰ <b>Время:</b> ЧЧ:ММ (24-часовой формат)\n\n"
         "🔹 <b>Пример:</b>\n"
         f"<code>{example}</code>\n\n"
-        f"Можно искать до {settings.max_concurrent_searches} билетов одновременно\n"
     )
     await update.message.reply_html(message)
     logger.bind(
