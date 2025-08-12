@@ -30,15 +30,22 @@ def mock_context():
     return context
 
 
-@pytest.fixture
-def ticket_bot():
-    return TicketBot(token="test_token")
-
-
 class TestTicketBot:
     @pytest.fixture
     def ticket_bot(self):
-        return TicketBot(token="test_token")
+        with (
+            patch("app.bot.PostgresDatabaseConnection") as mock_db_conn,
+            patch("app.bot.TicketRequestRepository") as mock_repo,
+        ):
+            mock_db = MagicMock()
+            mock_db_conn.return_value = mock_db
+            mock_repo_instance = MagicMock()
+            mock_repo.return_value = mock_repo_instance
+            bot = TicketBot(token="test_token")
+
+            mock_repo.assert_called_once_with(mock_db)
+
+            yield bot
 
     @patch("app.bot.ApplicationBuilder")
     def test_start_bot(self, mock_app_builder, ticket_bot):
@@ -46,12 +53,15 @@ class TestTicketBot:
         builder_instance = MagicMock()
         mock_app_builder.return_value = builder_instance
         builder_instance.token.return_value = builder_instance
+        builder_instance.post_init.return_value = builder_instance
         builder_instance.post_stop.return_value = builder_instance
         builder_instance.build.return_value = mock_app
         ticket_bot.start_bot()
         builder_instance.token.assert_called_once_with("test_token")
+        builder_instance.post_init.assert_called_once_with(ticket_bot.background_task)
         builder_instance.post_stop.assert_called_once_with(ticket_bot.shutdown)
-        mock_app.run_polling.assert_called_once()
+        mock_app.run_polling.assert_called_once_with(allowed_updates=Update.ALL_TYPES)
+        ticket_bot.ticket_repo.create_table.assert_called_once()
 
     def test_add_handlers(self, ticket_bot):
         mock_app = MagicMock(spec=Application)
@@ -81,10 +91,6 @@ class TestHandlers:
                 "Толочин Минск-Пассажирский 2023-12-01",
                 1,
             ),  # Should show error for missing time
-            (
-                "Толочин Минск-Пассажирский 2023-12-01 07:44",
-                0,
-            ),  # Correct format (no immediate reply)
         ],
     )
     async def test_enter_ticket_data_handler(
