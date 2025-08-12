@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     bot_token: str = "BOT_TOKEN"
     log_level: str = "INFO"
-    retry_time: float = 9.0  # seconds for another ticket finding retry
+    retry_time: float = 3.0  # seconds for another ticket finding retry
     max_concurrent_searches: int = 3
     request_timeout: float = 7
     retry_attempts: int = 8

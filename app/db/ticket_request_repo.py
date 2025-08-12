@@ -3,7 +3,7 @@ from psycopg2 import sql
 
 from app.db.database_connection import PostgresDatabaseConnection
 
-logger = structlog.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class TicketRequestRepository:
@@ -43,15 +43,11 @@ class TicketRequestRepository:
         chat_id: int,
         user_id: int,
         user_name: str,
-    ) -> tuple | None:  # type: ignore
+    ) -> None:
         query = sql.SQL("""
                         INSERT INTO ticket_requests
-                        (departure_station, arrival_station, travel_date, travel_time, chat_id, user_id, user_name)
-                        VALUES (%s, %s, %s, %s, %s) ON CONFLICT
-                        ON CONSTRAINT unique_request DO
-                        UPDATE
-                            SET updated_at = NOW()
-                            RETURNING id
+                        (departure_station, arrival_station, travel_date, travel_time, chat_id, user_id, user_name, is_active)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE)
                         """)
 
         with self._db.connection.cursor() as cursor:
@@ -63,7 +59,7 @@ class TicketRequestRepository:
                 f"Request: Departure {departure} Arrival {arrival} Date {date} Time {time}"
                 f"Chat_id {chat_id} User_id {user_id} User_name {user_name} added successfully"
             )
-            return cursor.fetchone()
+            return None
 
     def get_active_requests(self) -> list[dict]:  # type: ignore
         query = sql.SQL("""SELECT id,
@@ -87,19 +83,41 @@ class TicketRequestRepository:
         date: str,
         time: str,
         chat_id: int,
-        user_id: int,
-        user_name: str,
     ) -> None:
         query = sql.SQL("""
                         UPDATE ticket_requests
                         SET is_active = FALSE
-                        WHERE departure_station = %s AND arrival_station = %s AND travel_date = %s AND travel_time = %s AND chat_id = %s AND user_id = %s AND user_name = %s
+                        WHERE departure_station = %s AND arrival_station = %s AND travel_date = %s AND travel_time = %s AND chat_id = %s
                         """)
         with self._db.connection.cursor() as cursor:
-            cursor.execute(
-                query, (departure, arrival, date, time, chat_id, user_id, user_name)
-            )
+            cursor.execute(query, (departure, arrival, date, time, chat_id))
             self._db.connection.commit()
             logger.info(
                 f"Request: Departure {departure} Arrival {arrival} Date {date} Time {time} set inactive successfully"
             )
+
+    def set_request_inactive_by_chat_id(self, chat_id: int) -> int:
+        query = sql.SQL("""
+                        UPDATE ticket_requests
+                        SET is_active = FALSE
+                        WHERE chat_id = %s AND is_active = TRUE
+                        """)
+        with self._db.connection.cursor() as cursor:
+            cursor.execute(query, (chat_id,))
+            updated_rows = cursor.rowcount
+            self._db.connection.commit()
+            logger.info(f"Updated {updated_rows} requests for chat_id {chat_id}")
+            return updated_rows
+
+    def get_chats_by_ticket_params(
+        self, departure: str, arrival: str, date: str, time: str
+    ) -> list[int]:
+        query = sql.SQL("""
+                        SELECT DISTINCT chat_id
+                        FROM ticket_requests
+                        WHERE departure_station = %s AND arrival_station = %s AND travel_date = %s AND travel_time = %s AND is_active = TRUE
+                        """)
+        with self._db.connection.cursor() as cursor:
+            cursor.execute(query, (departure, arrival, date, time))
+            result = cursor.fetchall()
+            return [row[0] for row in result]
