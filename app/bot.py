@@ -123,13 +123,15 @@ class TicketBot:
                                         one_time_keyboard=True,
                                     ),
                                 )
-                            application.bot_data["ticket_repo"].set_request_inactive(
-                                departure=request_data[0],
-                                arrival=request_data[1],
-                                date=request_data[2],
-                                time=request_data[3],
-                                chat_id=chat_id,
-                            )
+                                application.bot_data[
+                                    "ticket_repo"
+                                ].set_request_inactive(
+                                    departure=request_data[0],
+                                    arrival=request_data[1],
+                                    date=request_data[2],
+                                    time=request_data[3],
+                                    chat_id=chat_id,
+                                )
                             await asyncio.sleep(calculate_retry_time(1))
                             continue
 
@@ -161,9 +163,9 @@ class TicketBot:
                                 "Tickets found"
                             )
                         else:
-                            logger.bind(
-                                url=url, chat_id=chat_id, params=request_data
-                            ).debug("No tickets found")
+                            logger.bind(url=url, params=request_data).debug(
+                                "No tickets found"
+                            )
                         await asyncio.sleep(calculate_retry_time(1))
 
                     await asyncio.sleep(calculate_retry_time())
