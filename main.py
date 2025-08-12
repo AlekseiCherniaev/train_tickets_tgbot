@@ -4,7 +4,7 @@ from app.bot import TicketBot
 from app.logger import prepare_logger
 from app.settings import settings
 
-logger = structlog.get_logger("app")
+logger = structlog.get_logger(__name__)
 
 
 def main() -> None:
