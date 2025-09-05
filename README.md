@@ -1,6 +1,7 @@
 # 🚂 Train Tickets Bot for pass.rw.by
 
 A Telegram bot that helps you find available train tickets on the Belarusian Railways website (pass.rw.by).
+You can find bot at @train_tickets_passrw_bot
 
 ## 🌟 Features
 
